@@ -1,0 +1,88 @@
+name: AD Group Management
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      GroupName:
+        description: 'Select the group'
+        required: true
+        type: choice
+        options:
+          - GroupA
+          - GroupB
+          - GroupC
+      UserName:
+        description: 'Select the user'
+        required: true
+        type: choice
+        options:
+          - User1
+          - User2
+          - User3
+      ManagerName:
+        description: 'Select the manager'
+        required: true
+        type: choice
+        options:
+          - Manager1
+          - Manager2
+          - Manager3
+      ActionType:
+        description: 'Select action type'
+        required: true
+        type: choice
+        options:
+          - Add
+          - Remove
+
+jobs:
+  manage-group:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PowerShell
+        uses: hugoalh-studio/setup-powershell-toolkit-ghaction@v2.0.0
+
+      - name: Run PowerShell script
+        run: |
+          param (
+            [string]$GroupName,
+            [string]$UserName,
+            [string]$ManagerName,
+            [string]$ActionType
+          )
+          if ($ActionType -eq "Add") {
+              Add-ADGroupMember -Identity $GroupName -Members $UserName
+              $subject = "User $UserName added to group $GroupName"
+              $body = "User $UserName has been added to the group $GroupName."
+          } elseif ($ActionType -eq "Remove") {
+              Remove-ADGroupMember -Identity $GroupName -Members $UserName
+              $subject = "User $UserName removed from group $GroupName"
+              $body = "User $UserName has been removed from the group $GroupName."
+          }
+          Send-MailMessage -To "$ManagerName@yourcompany.com" -From "no-reply@yourcompany.com" -Subject $subject -Body $body -SmtpServer "smtp.yourcompany.com"
+          Send-MailMessage -To "$UserName@yourcompany.com" -From "no-reply@yourcompany.com" -Subject "Action completed" -Body $body -SmtpServer "smtp.yourcompany.com"
+        shell: pwsh
+        env:
+          GroupName: ${{ github.event.inputs.GroupName }}
+          UserName: ${{ github.event.inputs.UserName }}
+          ManagerName: ${{ github.event.inputs.ManagerName }}
+          ActionType: ${{ github.event.inputs.ActionType }}
+
+      - name: Send notification email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.mailtrap.io
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "User ${{ github.event.inputs.UserName }} added to group ${{ github.event.inputs.GroupName }}"
+          body: "Hello ${{ github.event.inputs.UserName }}, you have been added to the group ${{ github.event.inputs.GroupName }}."
+          to: ${{ github.event.inputs.UserName }}@yourcompany.com
+          from: no-reply@yourcompany.com
